@@ -8,28 +8,75 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-func GetAccounts(c *gin.Context) {
+// Helper untuk query join + filter user_id
+func getAccountQuery(c *gin.Context) (*gorm.DB, uint, bool) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
-		return
+		return nil, 0, false
 	}
-
-	memberID := c.Query("member_id")
 
 	db := database.GetDB()
 	query := db.Joins("JOIN members ON members.id = accounts.member_id").
 		Where("members.user_id = ?", userID)
 
-	if memberID != "" {
+	return query, userID, true
+}
+
+// GET /accounts?member_id=&type=
+func GetAccounts(c *gin.Context) {
+	query, _, ok := getAccountQuery(c)
+	if !ok {
+		return
+	}
+
+	if memberID := c.Query("member_id"); memberID != "" {
 		query = query.Where("accounts.member_id = ?", memberID)
+	}
+	if accType := c.Query("type"); accType != "" {
+		query = query.Where("accounts.type = ?", accType)
 	}
 
 	var accounts []models.Account
 	if err := query.Find(&accounts).Error; err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch accounts")
+		return
+	}
+
+	utils.RespondWithSuccess(c, accounts)
+}
+
+// GET /accounts/member/:member_id
+func GetAccountByMemberID(c *gin.Context) {
+	query, _, ok := getAccountQuery(c)
+	if !ok {
+		return
+	}
+
+	memberID := c.Param("member_id")
+	var accounts []models.Account
+	if err := query.Where("accounts.member_id = ?", memberID).Find(&accounts).Error; err != nil {
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch accounts by member")
+		return
+	}
+
+	utils.RespondWithSuccess(c, accounts)
+}
+
+// GET /accounts/type/:type
+func GetAccountByType(c *gin.Context) {
+	query, _, ok := getAccountQuery(c)
+	if !ok {
+		return
+	}
+
+	accType := c.Param("type")
+	var accounts []models.Account
+	if err := query.Where("accounts.type = ?", accType).Find(&accounts).Error; err != nil {
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch accounts by type")
 		return
 	}
 
@@ -50,13 +97,12 @@ func CreateAccount(c *gin.Context) {
 		Balance  float64 `json:"balance"`
 		Currency string  `json:"currency"`
 	}
-
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.RespondWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Verify member belongs to user
+	// Verifikasi member milik user
 	db := database.GetDB()
 	var member models.Member
 	if err := db.Where("user_id = ? AND id = ?", userID, input.MemberID).First(&member).Error; err != nil {
@@ -81,9 +127,8 @@ func CreateAccount(c *gin.Context) {
 }
 
 func GetAccountByID(c *gin.Context) {
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+	query, _, ok := getAccountQuery(c)
+	if !ok {
 		return
 	}
 
@@ -93,11 +138,8 @@ func GetAccountByID(c *gin.Context) {
 		return
 	}
 
-	db := database.GetDB()
 	var account models.Account
-	if err := db.Joins("JOIN members ON members.id = accounts.member_id").
-		Where("members.user_id = ? AND accounts.id = ?", userID, id).
-		First(&account).Error; err != nil {
+	if err := query.Where("accounts.id = ?", id).First(&account).Error; err != nil {
 		utils.RespondWithError(c, http.StatusNotFound, "Account not found")
 		return
 	}
@@ -106,9 +148,8 @@ func GetAccountByID(c *gin.Context) {
 }
 
 func UpdateAccount(c *gin.Context) {
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+	query, _, ok := getAccountQuery(c)
+	if !ok {
 		return
 	}
 
@@ -123,22 +164,17 @@ func UpdateAccount(c *gin.Context) {
 		Type     string `json:"type"`
 		Currency string `json:"currency"`
 	}
-
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.RespondWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	db := database.GetDB()
 	var account models.Account
-	if err := db.Joins("JOIN members ON members.id = accounts.member_id").
-		Where("members.user_id = ? AND accounts.id = ?", userID, id).
-		First(&account).Error; err != nil {
+	if err := query.Where("accounts.id = ?", id).First(&account).Error; err != nil {
 		utils.RespondWithError(c, http.StatusNotFound, "Account not found")
 		return
 	}
 
-	// Update fields if provided
 	if input.Name != "" {
 		account.Name = input.Name
 	}
@@ -149,7 +185,7 @@ func UpdateAccount(c *gin.Context) {
 		account.Currency = input.Currency
 	}
 
-	if err := db.Save(&account).Error; err != nil {
+	if err := database.GetDB().Save(&account).Error; err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to update account")
 		return
 	}
@@ -158,9 +194,8 @@ func UpdateAccount(c *gin.Context) {
 }
 
 func DeleteAccount(c *gin.Context) {
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+	query, _, ok := getAccountQuery(c)
+	if !ok {
 		return
 	}
 
@@ -170,16 +205,13 @@ func DeleteAccount(c *gin.Context) {
 		return
 	}
 
-	db := database.GetDB()
 	var account models.Account
-	if err := db.Joins("JOIN members ON members.id = accounts.member_id").
-		Where("members.user_id = ? AND accounts.id = ?", userID, id).
-		First(&account).Error; err != nil {
+	if err := query.Where("accounts.id = ?", id).First(&account).Error; err != nil {
 		utils.RespondWithError(c, http.StatusNotFound, "Account not found")
 		return
 	}
 
-	if err := db.Delete(&account).Error; err != nil {
+	if err := database.GetDB().Delete(&account).Error; err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to delete account")
 		return
 	}

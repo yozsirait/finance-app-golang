@@ -35,6 +35,8 @@ func SetupRouter() *gin.Engine {
 
 		// Account routes
 		auth.GET("/accounts", controllers.GetAccounts)
+		auth.GET("/accounts/member/:member_id", controllers.GetAccountByMemberID)
+		auth.GET("/accounts/type/:type", controllers.GetAccountByType)
 		auth.POST("/accounts", controllers.CreateAccount)
 		auth.GET("/accounts/:id", controllers.GetAccountByID)
 		auth.PUT("/accounts/:id", controllers.UpdateAccount)

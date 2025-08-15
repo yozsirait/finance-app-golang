@@ -12,4 +12,9 @@ type Transaction struct {
 	Date        string  `gorm:"not null"`
 	Description string
 	Type        string `gorm:"not null"` // "income" or "expense"
+
+	// Relasi
+	Member   Member   `gorm:"foreignKey:MemberID"`
+	Account  Account  `gorm:"foreignKey:AccountID"`
+	Category Category `gorm:"foreignKey:CategoryID"`
 }

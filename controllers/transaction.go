@@ -1,8 +1,10 @@
 package controllers
 
 import (
+	"errors"
 	"finance-app/models"
 	"finance-app/utils"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -177,28 +179,45 @@ func (tc *TransactionController) GetTransactions(c *gin.Context) {
 }
 
 func (tc *TransactionController) GetTransactionByID(c *gin.Context) {
+	// Get user ID from token
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusUnauthorized, err)
 		return
 	}
 
+	// Validate transaction ID
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid transaction ID")
+		utils.RespondWithError(c, http.StatusBadRequest,
+			utils.NewAppError("Invalid transaction ID", http.StatusBadRequest))
 		return
 	}
 
+	// Fetch transaction with preloaded relations
 	var transaction models.Transaction
-	if err := tc.db.Preload("Account").
-		Preload("Category").
-		Preload("Member").
+	err = tc.db.
+		Preload("Account", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, name, balance") // Only select necessary fields
+		}).
+		Preload("Category", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, name, type")
+		}).
+		Preload("Member", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, name")
+		}).
 		Where("user_id = ? AND id = ?", userID, id).
-		First(&transaction).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			utils.RespondWithError(c, http.StatusNotFound, utils.NewAppError("Transaction not found", http.StatusNotFound))
+		First(&transaction).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.RespondWithError(c, http.StatusNotFound,
+				utils.NewAppError("Transaction not found", http.StatusNotFound))
 		} else {
-			utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch transaction")
+			// Log the actual error for debugging
+			log.Printf("Failed to fetch transaction: %v", err)
+			utils.RespondWithError(c, http.StatusInternalServerError,
+				utils.NewAppError("Failed to fetch transaction details", http.StatusInternalServerError))
 		}
 		return
 	}
