@@ -4,12 +4,16 @@ import "gorm.io/gorm"
 
 type Transfer struct {
 	gorm.Model
-	UserID        uint    `gorm:"not null"`
-	MemberID      uint    `gorm:"not null"`
-	FromAccountID uint    `gorm:"not null"`
-	ToAccountID   uint    `gorm:"not null"`
-	Amount        float64 `gorm:"not null"`
-	Date          string  `gorm:"not null"`
+	UserID        uint
+	MemberID      uint
+	FromAccountID uint
+	ToAccountID   uint
+	Amount        float64
+	Date          string
 	Description   string
-	Fee           float64 `gorm:"default:0"`
+	Fee           float64
+
+	Member      Member  `gorm:"foreignKey:MemberID"`
+	FromAccount Account `gorm:"foreignKey:FromAccountID"`
+	ToAccount   Account `gorm:"foreignKey:ToAccountID"`
 }

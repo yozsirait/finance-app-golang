@@ -2,15 +2,12 @@ package routes
 
 import (
 	"finance-app/controllers"
-	"finance-app/database"
 	"finance-app/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter() *gin.Engine {
-	db := database.GetDB()
-	transactionController := controllers.NewTransactionController(db)
 	r := gin.Default()
 
 	// Auth routes
@@ -34,16 +31,14 @@ func SetupRouter() *gin.Engine {
 		auth.DELETE("/members/:id", controllers.DeleteMember)
 
 		// Account routes
-		auth.GET("/accounts", controllers.GetAccounts)
-		auth.GET("/accounts/member/:member_id", controllers.GetAccountByMemberID)
-		auth.GET("/accounts/type/:type", controllers.GetAccountByType)
+		auth.GET("/accounts", controllers.GetAccounts) // Bisa filter member_id & type
 		auth.POST("/accounts", controllers.CreateAccount)
 		auth.GET("/accounts/:id", controllers.GetAccountByID)
 		auth.PUT("/accounts/:id", controllers.UpdateAccount)
 		auth.DELETE("/accounts/:id", controllers.DeleteAccount)
 
 		// Category routes
-		auth.GET("/categories", controllers.GetCategories)
+		auth.GET("/categories", controllers.GetCategories) // ?type=income&search=food
 		auth.POST("/categories", controllers.CreateCategory)
 		auth.GET("/categories/:id", controllers.GetCategoryByID)
 		auth.PUT("/categories/:id", controllers.UpdateCategory)
@@ -57,11 +52,11 @@ func SetupRouter() *gin.Engine {
 		auth.DELETE("/budgets/:id", controllers.DeleteBudget)
 
 		// Transaction routes
-		auth.POST("/transactions", transactionController.CreateTransaction)
-		auth.GET("/transactions", transactionController.GetTransactions)
-		auth.GET("/transactions/:id", transactionController.GetTransactionByID)
-		auth.PUT("/transactions/:id", transactionController.UpdateTransaction)
-		auth.DELETE("/transactions/:id", transactionController.DeleteTransaction)
+		auth.GET("/transactions", controllers.GetTransactions)
+		auth.GET("/transactions/:id", controllers.GetTransactionByID)
+		auth.POST("/transactions", controllers.CreateTransaction)
+		auth.PUT("/transactions/:id", controllers.UpdateTransaction)
+		auth.DELETE("/transactions/:id", controllers.DeleteTransaction)
 
 		// Recurring Transaction routes
 		auth.GET("/recurring-transactions", controllers.GetRecurringTransactions)
@@ -84,10 +79,7 @@ func SetupRouter() *gin.Engine {
 		auth.DELETE("/saving-targets/:id", controllers.DeleteSavingTarget)
 
 		// Dashboard routes
-		auth.GET("/dashboard/summary", controllers.GetDashboardSummary)
-		auth.GET("/dashboard/transactions", controllers.GetDashboardTransactions)
-		auth.GET("/dashboard/categories", controllers.GetDashboardCategories)
-		auth.GET("/dashboard/budgets", controllers.GetDashboardBudgets)
+		auth.GET("/dashboard", controllers.GetDashboard)
 	}
 
 	return r

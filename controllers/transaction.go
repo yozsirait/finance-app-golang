@@ -2,353 +2,465 @@ package controllers
 
 import (
 	"errors"
-	"finance-app/models"
-	"finance-app/utils"
-	"log"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+
+	"finance-app/database"
+	"finance-app/models"
+	"finance-app/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-type TransactionController struct {
-	db *gorm.DB
-}
+/* ===========================
+   Helpers
+=========================== */
 
-func NewTransactionController(db *gorm.DB) *TransactionController {
-	return &TransactionController{db: db}
-}
+var ErrInsufficientBalance = errors.New("insufficient account balance")
 
-func (tc *TransactionController) CreateTransaction(c *gin.Context) {
-	var input struct {
-		MemberID    uint    `json:"member_id" binding:"required"`
-		AccountID   uint    `json:"account_id" binding:"required"`
-		CategoryID  uint    `json:"category_id" binding:"required"`
-		Amount      float64 `json:"amount" binding:"required,gt=0"`
-		Date        string  `json:"date" binding:"required"`
-		Description string  `json:"description"`
-		Type        string  `json:"type" binding:"required,oneof=income expense"`
+func adjustAccountBalance(tx *gorm.DB, accountID uint, tType string, amount float64, apply bool) error {
+	var acc models.Account
+	if err := tx.First(&acc, accountID).Error; err != nil {
+		return err
 	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, utils.FormatValidationError(err))
-		return
-	}
-
-	if _, err := time.Parse("2006-01-02", input.Date); err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid date format. Use YYYY-MM-DD")
-		return
-	}
-
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, err)
-		return
-	}
-
-	if err := tc.validateTransactionRelations(userID, input.MemberID, input.AccountID, input.CategoryID); err != nil {
-		utils.RespondWithError(c, err.(*utils.AppError).StatusCode, err)
-		return
-	}
-
-	transaction := models.Transaction{
-		UserID:      userID,
-		MemberID:    input.MemberID,
-		AccountID:   input.AccountID,
-		CategoryID:  input.CategoryID,
-		Amount:      input.Amount,
-		Date:        input.Date,
-		Description: input.Description,
-		Type:        input.Type,
-	}
-
-	err = tc.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&transaction).Error; err != nil {
-			return err
-		}
-
-		var account models.Account
-		if err := tx.First(&account, input.AccountID).Error; err != nil {
-			return err
-		}
-
-		if input.Type == "income" {
-			account.Balance += input.Amount
-		} else {
-			if account.Balance < input.Amount {
-				return utils.NewAppError("Insufficient account balance", http.StatusBadRequest)
+	switch tType {
+	case "expense":
+		if apply {
+			// kurangi saldo
+			if acc.Balance < amount {
+				return ErrInsufficientBalance
 			}
-			account.Balance -= input.Amount
-		}
-
-		return tx.Save(&account).Error
-	})
-
-	if err != nil {
-		if appErr, ok := err.(*utils.AppError); ok {
-			utils.RespondWithError(c, appErr.StatusCode, appErr)
+			acc.Balance -= amount
 		} else {
-			utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create transaction")
+			// rollback: kembalikan saldo
+			acc.Balance += amount
 		}
-		return
+	case "income":
+		if apply {
+			acc.Balance += amount
+		} else {
+			acc.Balance -= amount
+			if acc.Balance < 0 {
+				// jaga2 jadi negatif saat rollback—boleh negatif? kalau tidak, nolkan/return error
+				// Di sini kita biarkan boleh negatif agar konsisten; atur sesuai kebijakanmu.
+			}
+		}
+	default:
+		return fmt.Errorf("invalid type: %s", tType)
 	}
-
-	utils.RespondWithCreated(c, transaction)
+	return tx.Save(&acc).Error
 }
 
-func (tc *TransactionController) GetTransactions(c *gin.Context) {
+func validateTransactionRelations(db *gorm.DB, userID, memberID, accountID, categoryID uint) error {
+	// Member milik user
+	var cnt int64
+	if err := db.Model(&models.Member{}).
+		Where("user_id = ? AND id = ?", userID, memberID).
+		Count(&cnt).Error; err != nil {
+		return err
+	}
+	if cnt == 0 {
+		return utils.NewAppError("Member not found", http.StatusNotFound)
+	}
+
+	// Account milik member tsb (mengikuti skema kamu)
+	cnt = 0
+	if err := db.Model(&models.Account{}).
+		Where("member_id = ? AND id = ?", memberID, accountID).
+		Count(&cnt).Error; err != nil {
+		return err
+	}
+	if cnt == 0 {
+		return utils.NewAppError("Account not found", http.StatusNotFound)
+	}
+
+	// Category milik user
+	cnt = 0
+	if err := db.Model(&models.Category{}).
+		Where("user_id = ? AND id = ?", userID, categoryID).
+		Count(&cnt).Error; err != nil {
+		return err
+	}
+	if cnt == 0 {
+		return utils.NewAppError("Category not found", http.StatusNotFound)
+	}
+	return nil
+}
+
+/* ===========================
+   DTOs
+=========================== */
+
+type transactionCreateReq struct {
+	MemberID    uint    `json:"member_id" binding:"required"`
+	AccountID   uint    `json:"account_id" binding:"required"`
+	CategoryID  uint    `json:"category_id" binding:"required"`
+	Amount      float64 `json:"amount" binding:"required,gt=0"`
+	Date        string  `json:"date" binding:"required"` // YYYY-MM-DD
+	Description string  `json:"description"`
+	Type        string  `json:"type" binding:"required,oneof=income expense"`
+}
+
+type transactionUpdateReq struct {
+	MemberID    *uint    `json:"member_id,omitempty"`
+	AccountID   *uint    `json:"account_id,omitempty"`
+	CategoryID  *uint    `json:"category_id,omitempty"`
+	Amount      *float64 `json:"amount,omitempty"`
+	Date        *string  `json:"date,omitempty"` // YYYY-MM-DD
+	Description *string  `json:"description,omitempty"`
+	Type        *string  `json:"type,omitempty" binding:"omitempty,oneof=income expense"`
+}
+
+/* ===========================
+   Handlers
+=========================== */
+
+// GET /api/transactions
+func GetTransactions(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusUnauthorized, err)
 		return
 	}
+	db := database.GetDB()
 
-	queryParams := struct {
-		MemberID   string `form:"member_id"`
-		AccountID  string `form:"account_id"`
-		CategoryID string `form:"category_id"`
-		Type       string `form:"type"`
-		StartDate  string `form:"start_date"`
-		EndDate    string `form:"end_date"`
-		Limit      int    `form:"limit,default=20"`
-		Page       int    `form:"page,default=1"`
-	}{
-		Limit: 20,
-		Page:  1,
-	}
-
-	if err := c.ShouldBindQuery(&queryParams); err != nil {
+	// query params
+	q := struct {
+		MemberID    string  `form:"member_id"`
+		AccountID   string  `form:"account_id"`
+		CategoryID  string  `form:"category_id"`
+		Type        string  `form:"type"`
+		StartDate   string  `form:"start_date"`
+		EndDate     string  `form:"end_date"`
+		MinAmount   float64 `form:"min_amount"`
+		MaxAmount   float64 `form:"max_amount"`
+		Description string  `form:"description"`
+		SortBy      string  `form:"sort_by,default=date"`
+		SortOrder   string  `form:"sort_order,default=desc"`
+		Limit       int     `form:"limit,default=20"`
+		Page        int     `form:"page,default=1"`
+	}{}
+	if err := c.ShouldBindQuery(&q); err != nil {
 		utils.RespondWithError(c, http.StatusBadRequest, "Invalid query parameters")
 		return
 	}
 
-	query := tc.db.Where("user_id = ?", userID)
+	query := db.Model(&models.Transaction{}).Where("user_id = ?", userID)
 
-	if queryParams.MemberID != "" {
-		if memberID, err := strconv.Atoi(queryParams.MemberID); err == nil {
-			query = query.Where("member_id = ?", memberID)
+	if v := q.MemberID; v != "" {
+		if id, e := strconv.Atoi(v); e == nil {
+			query = query.Where("member_id = ?", id)
 		}
 	}
-
-	if queryParams.AccountID != "" {
-		if accountID, err := strconv.Atoi(queryParams.AccountID); err == nil {
-			query = query.Where("account_id = ?", accountID)
+	if v := q.AccountID; v != "" {
+		if id, e := strconv.Atoi(v); e == nil {
+			query = query.Where("account_id = ?", id)
 		}
 	}
-
-	if queryParams.CategoryID != "" {
-		if categoryID, err := strconv.Atoi(queryParams.CategoryID); err == nil {
-			query = query.Where("category_id = ?", categoryID)
+	if v := q.CategoryID; v != "" {
+		if id, e := strconv.Atoi(v); e == nil {
+			query = query.Where("category_id = ?", id)
 		}
 	}
-
-	if queryParams.Type != "" {
-		query = query.Where("type = ?", queryParams.Type)
+	if v := q.Type; v != "" {
+		query = query.Where("type = ?", v)
+	}
+	if q.StartDate != "" && q.EndDate != "" {
+		query = query.Where("date BETWEEN ? AND ?", q.StartDate, q.EndDate)
+	}
+	if q.MinAmount > 0 {
+		query = query.Where("amount >= ?", q.MinAmount)
+	}
+	if q.MaxAmount > 0 {
+		query = query.Where("amount <= ?", q.MaxAmount)
+	}
+	if q.Description != "" {
+		query = query.Where("description LIKE ?", "%"+q.Description+"%")
 	}
 
-	if queryParams.StartDate != "" && queryParams.EndDate != "" {
-		if _, err := time.Parse("2006-01-02", queryParams.StartDate); err != nil {
-			utils.RespondWithError(c, http.StatusBadRequest, "Invalid start date format")
-			return
-		}
-		if _, err := time.Parse("2006-01-02", queryParams.EndDate); err != nil {
-			utils.RespondWithError(c, http.StatusBadRequest, "Invalid end date format")
-			return
-		}
-		query = query.Where("date BETWEEN ? AND ?", queryParams.StartDate, queryParams.EndDate)
-	}
-
+	// Count first
 	var total int64
-	if err := query.Model(&models.Transaction{}).Count(&total).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to count transactions")
+	if err := query.Count(&total).Error; err != nil {
+		utils.RespondWithError(c, http.StatusInternalServerError, "Count error")
 		return
 	}
 
-	offset := (queryParams.Page - 1) * queryParams.Limit
-	query = query.Offset(offset).Limit(queryParams.Limit).Order("date DESC")
+	// Sorting safety
+	allowedSort := map[string]bool{"date": true, "amount": true, "created_at": true, "id": true}
+	sortBy := "date"
+	if allowedSort[strings.ToLower(q.SortBy)] {
+		sortBy = q.SortBy
+	}
+	sortOrder := "ASC"
+	if strings.ToLower(q.SortOrder) == "desc" {
+		sortOrder = "DESC"
+	}
+
+	offset := (q.Page - 1) * q.Limit
 
 	var transactions []models.Transaction
-	if err := query.Find(&transactions).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch transactions")
+	if err := query.
+		Preload("Account", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,balance") }).
+		Preload("Category", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,type") }).
+		Preload("Member", func(db *gorm.DB) *gorm.DB { return db.Select("id,name") }).
+		Order(fmt.Sprintf("%s %s", sortBy, sortOrder)).
+		Offset(offset).
+		Limit(q.Limit).
+		Find(&transactions).Error; err != nil {
+		utils.RespondWithError(c, http.StatusInternalServerError, "Query error")
 		return
 	}
 
-	utils.RespondWithPaginatedData(c, transactions, total, queryParams.Page, queryParams.Limit)
+	utils.RespondWithPaginatedData(c, transactions, total, q.Page, q.Limit)
 }
 
-func (tc *TransactionController) GetTransactionByID(c *gin.Context) {
-	// Get user ID from token
+// GET /api/transactions/:id
+func GetTransactionByID(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusUnauthorized, err)
 		return
 	}
+	db := database.GetDB()
 
-	// Validate transaction ID
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest,
-			utils.NewAppError("Invalid transaction ID", http.StatusBadRequest))
-		return
-	}
-
-	// Fetch transaction with preloaded relations
-	var transaction models.Transaction
-	err = tc.db.
-		Preload("Account", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id, name, balance") // Only select necessary fields
-		}).
-		Preload("Category", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id, name, type")
-		}).
-		Preload("Member", func(db *gorm.DB) *gorm.DB {
-			return db.Select("id, name")
-		}).
-		Where("user_id = ? AND id = ?", userID, id).
-		First(&transaction).Error
-
-	if err != nil {
+	id := c.Param("id")
+	var trx models.Transaction
+	if err := db.Where("id = ? AND user_id = ?", id, userID).
+		Preload("Account", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,balance") }).
+		Preload("Category", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,type") }).
+		Preload("Member", func(db *gorm.DB) *gorm.DB { return db.Select("id,name") }).
+		First(&trx).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			utils.RespondWithError(c, http.StatusNotFound,
-				utils.NewAppError("Transaction not found", http.StatusNotFound))
+			utils.RespondWithError(c, http.StatusNotFound, "Transaction not found")
 		} else {
-			// Log the actual error for debugging
-			log.Printf("Failed to fetch transaction: %v", err)
-			utils.RespondWithError(c, http.StatusInternalServerError,
-				utils.NewAppError("Failed to fetch transaction details", http.StatusInternalServerError))
+			utils.RespondWithError(c, http.StatusInternalServerError, "DB error")
 		}
 		return
 	}
 
-	utils.RespondWithSuccess(c, transaction)
+	utils.RespondWithSuccess(c, trx)
 }
 
-func (tc *TransactionController) UpdateTransaction(c *gin.Context) {
+// POST /api/transactions
+func CreateTransaction(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusUnauthorized, err)
 		return
 	}
+	db := database.GetDB()
 
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid transaction ID")
-		return
-	}
-
-	var input struct {
-		MemberID    uint    `json:"member_id"`
-		AccountID   uint    `json:"account_id"`
-		CategoryID  uint    `json:"category_id"`
-		Amount      float64 `json:"amount"`
-		Date        string  `json:"date"`
-		Description string  `json:"description"`
-		Type        string  `json:"type"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var req transactionCreateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.RespondWithError(c, http.StatusBadRequest, utils.FormatValidationError(err))
 		return
 	}
+	if _, err := time.Parse("2006-01-02", req.Date); err != nil {
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid date format. Use YYYY-MM-DD")
+		return
+	}
 
-	if input.Date != "" {
-		if _, err := time.Parse("2006-01-02", input.Date); err != nil {
+	// Validate FK ownerships
+	if err := validateTransactionRelations(db, userID, req.MemberID, req.AccountID, req.CategoryID); err != nil {
+		if appErr, ok := err.(*utils.AppError); ok {
+			utils.RespondWithError(c, appErr.StatusCode, appErr)
+		} else {
+			utils.RespondWithError(c, http.StatusInternalServerError, "Validation error")
+		}
+		return
+	}
+
+	trx := models.Transaction{
+		UserID:      userID,
+		MemberID:    req.MemberID,
+		AccountID:   req.AccountID,
+		CategoryID:  req.CategoryID,
+		Amount:      req.Amount,
+		Date:        req.Date,
+		Description: req.Description,
+		Type:        req.Type,
+	}
+
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&trx).Error; err != nil {
+			return err
+		}
+		if err := adjustAccountBalance(tx, trx.AccountID, trx.Type, trx.Amount, true); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ErrInsufficientBalance) {
+			utils.RespondWithError(c, http.StatusBadRequest, "Insufficient account balance")
+			return
+		}
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create transaction")
+		return
+	}
+
+	// preload untuk response
+	if err := db.Preload("Account", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,balance") }).
+		Preload("Category", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,type") }).
+		Preload("Member", func(db *gorm.DB) *gorm.DB { return db.Select("id,name") }).
+		First(&trx, trx.ID).Error; err != nil {
+		// fallback: kirim tanpa preload
+	}
+
+	utils.RespondWithCreated(c, trx)
+}
+
+// PUT /api/transactions/:id
+func UpdateTransaction(c *gin.Context) {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, err)
+		return
+	}
+	db := database.GetDB()
+
+	id := c.Param("id")
+	var existing models.Transaction
+	if err := db.Where("id = ? AND user_id = ?", id, userID).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.RespondWithError(c, http.StatusNotFound, "Transaction not found")
+		} else {
+			utils.RespondWithError(c, http.StatusInternalServerError, "DB error")
+		}
+		return
+	}
+
+	var req transactionUpdateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.RespondWithError(c, http.StatusBadRequest, utils.FormatValidationError(err))
+		return
+	}
+	if req.Date != nil {
+		if _, err := time.Parse("2006-01-02", *req.Date); err != nil {
 			utils.RespondWithError(c, http.StatusBadRequest, "Invalid date format. Use YYYY-MM-DD")
 			return
 		}
 	}
 
-	var transaction models.Transaction
-	if err := tc.db.Where("user_id = ? AND id = ?", userID, id).First(&transaction).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			utils.RespondWithError(c, http.StatusNotFound, utils.NewAppError("Transaction not found", http.StatusNotFound))
+	// Siapkan nilai baru (fallback ke existing bila nil/zero)
+	newMemberID := existing.MemberID
+	if req.MemberID != nil {
+		newMemberID = *req.MemberID
+	}
+	newAccountID := existing.AccountID
+	if req.AccountID != nil {
+		newAccountID = *req.AccountID
+	}
+	newCategoryID := existing.CategoryID
+	if req.CategoryID != nil {
+		newCategoryID = *req.CategoryID
+	}
+	newAmount := existing.Amount
+	if req.Amount != nil && *req.Amount > 0 {
+		newAmount = *req.Amount
+	}
+	newDate := existing.Date
+	if req.Date != nil && *req.Date != "" {
+		newDate = *req.Date
+	}
+	newDesc := existing.Description
+	if req.Description != nil {
+		newDesc = *req.Description // boleh kosong kalau mau clear
+	}
+	newType := existing.Type
+	if req.Type != nil && *req.Type != "" {
+		newType = *req.Type
+	}
+
+	// Validasi FK ownerships untuk nilai baru
+	if err := validateTransactionRelations(db, userID, newMemberID, newAccountID, newCategoryID); err != nil {
+		if appErr, ok := err.(*utils.AppError); ok {
+			utils.RespondWithError(c, appErr.StatusCode, appErr)
 		} else {
-			utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch transaction")
+			utils.RespondWithError(c, http.StatusInternalServerError, "Validation error")
 		}
 		return
 	}
 
-	// ... [rest of the UpdateTransaction method remains the same]
-	// Just update the error responses to use utils.NewAppError where appropriate
+	err = db.Transaction(func(tx *gorm.DB) error {
+		// rollback efek lama
+		if err := adjustAccountBalance(tx, existing.AccountID, existing.Type, existing.Amount, false); err != nil {
+			return err
+		}
+
+		// update record
+		existing.MemberID = newMemberID
+		existing.AccountID = newAccountID
+		existing.CategoryID = newCategoryID
+		existing.Amount = newAmount
+		existing.Date = newDate
+		existing.Description = newDesc
+		existing.Type = newType
+
+		if err := tx.Save(&existing).Error; err != nil {
+			return err
+		}
+
+		// apply efek baru
+		if err := adjustAccountBalance(tx, existing.AccountID, existing.Type, existing.Amount, true); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ErrInsufficientBalance) {
+			utils.RespondWithError(c, http.StatusBadRequest, "Insufficient account balance")
+			return
+		}
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to update transaction")
+		return
+	}
+
+	// preload untuk response
+	if err := db.Preload("Account", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,balance") }).
+		Preload("Category", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,type") }).
+		Preload("Member", func(db *gorm.DB) *gorm.DB { return db.Select("id,name") }).
+		First(&existing, existing.ID).Error; err != nil {
+	}
+
+	utils.RespondWithSuccess(c, existing)
 }
 
-func (tc *TransactionController) DeleteTransaction(c *gin.Context) {
+// DELETE /api/transactions/:id
+func DeleteTransaction(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusUnauthorized, err)
 		return
 	}
+	db := database.GetDB()
 
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid transaction ID")
-		return
-	}
-
-	var transaction models.Transaction
-	if err := tc.db.Where("user_id = ? AND id = ?", userID, id).First(&transaction).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			utils.RespondWithError(c, http.StatusNotFound, utils.NewAppError("Transaction not found", http.StatusNotFound))
+	id := c.Param("id")
+	var trx models.Transaction
+	if err := db.Where("id = ? AND user_id = ?", id, userID).First(&trx).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.RespondWithError(c, http.StatusNotFound, "Transaction not found")
 		} else {
-			utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch transaction")
+			utils.RespondWithError(c, http.StatusInternalServerError, "DB error")
 		}
 		return
 	}
 
-	err = tc.db.Transaction(func(tx *gorm.DB) error {
-		var account models.Account
-		if err := tx.First(&account, transaction.AccountID).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		// rollback effect
+		if err := adjustAccountBalance(tx, trx.AccountID, trx.Type, trx.Amount, false); err != nil {
 			return err
 		}
-
-		if transaction.Type == "income" {
-			account.Balance -= transaction.Amount
-		} else {
-			account.Balance += transaction.Amount
-		}
-
-		if err := tx.Save(&account).Error; err != nil {
-			return err
-		}
-
-		return tx.Delete(&transaction).Error
-	})
-
-	if err != nil {
+		// delete
+		return tx.Delete(&trx).Error
+	}); err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to delete transaction")
 		return
 	}
 
 	utils.RespondWithSuccess(c, gin.H{"message": "Transaction deleted successfully"})
-}
-
-// Helper methods remain the same, but ensure they return *utils.AppError instead of utils.AppError
-func (tc *TransactionController) validateTransactionRelations(userID, memberID, accountID, categoryID uint) error {
-	var member models.Member
-	if err := tc.db.Where("user_id = ? AND id = ?", userID, memberID).First(&member).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return utils.NewAppError("Member not found", http.StatusNotFound)
-		}
-		return err
-	}
-
-	var account models.Account
-	if err := tc.db.Where("member_id = ? AND id = ?", memberID, accountID).First(&account).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return utils.NewAppError("Account not found", http.StatusNotFound)
-		}
-		return err
-	}
-
-	var category models.Category
-	if err := tc.db.Where("user_id = ? AND id = ?", userID, categoryID).First(&category).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return utils.NewAppError("Category not found", http.StatusNotFound)
-		}
-		return err
-	}
-
-	return nil
 }

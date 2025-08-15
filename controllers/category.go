@@ -18,6 +18,7 @@ func GetCategories(c *gin.Context) {
 	}
 
 	categoryType := c.Query("type")
+	search := c.Query("search") // optional filter nama kategori
 
 	db := database.GetDB()
 	query := db.Where("user_id = ?", userID)
@@ -25,9 +26,12 @@ func GetCategories(c *gin.Context) {
 	if categoryType != "" {
 		query = query.Where("type = ?", categoryType)
 	}
+	if search != "" {
+		query = query.Where("name LIKE ?", "%"+search+"%")
+	}
 
 	var categories []models.Category
-	if err := query.Find(&categories).Error; err != nil {
+	if err := query.Order("name ASC").Find(&categories).Error; err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch categories")
 		return
 	}
@@ -120,7 +124,6 @@ func UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	// Update fields if provided
 	if input.Name != "" {
 		category.Name = input.Name
 	}

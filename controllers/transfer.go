@@ -1,26 +1,30 @@
 package controllers
 
 import (
+	"net/http"
+	"time"
+
 	"finance-app/database"
 	"finance-app/models"
 	"finance-app/utils"
-	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
+// GET /transfers?member_id=&account_id=
 func GetTransfers(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+		utils.RespondWithError(c, http.StatusUnauthorized, err)
 		return
 	}
-
 	memberID := c.Query("member_id")
 	accountID := c.Query("account_id")
 
-	db := database.GetDB()
+	var transfers []models.Transfer
+	db := database.DB.Preload("Member").Preload("FromAccount").Preload("ToAccount")
+
 	query := db.Joins("JOIN members ON members.id = transfers.member_id").
 		Where("members.user_id = ?", userID)
 
@@ -31,178 +35,141 @@ func GetTransfers(c *gin.Context) {
 		query = query.Where("transfers.from_account_id = ? OR transfers.to_account_id = ?", accountID, accountID)
 	}
 
-	var transfers []models.Transfer
 	if err := query.Find(&transfers).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch transfers")
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to get transfers")
 		return
 	}
 
-	utils.RespondWithSuccess(c, transfers)
+	c.JSON(http.StatusOK, transfers)
 }
 
+// POST /transfers
 func CreateTransfer(c *gin.Context) {
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+	userID, emsg := utils.GetUserIDFromToken(c)
+	if emsg != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, emsg)
 		return
 	}
 
-	var input struct {
-		MemberID      uint    `json:"member_id" binding:"required"`
-		FromAccountID uint    `json:"from_account_id" binding:"required"`
-		ToAccountID   uint    `json:"to_account_id" binding:"required"`
-		Amount        float64 `json:"amount" binding:"required"`
-		Date          string  `json:"date" binding:"required"`
-		Description   string  `json:"description"`
-		Fee           float64 `json:"fee"`
-	}
-
+	var input models.Transfer
 	if err := c.ShouldBindJSON(&input); err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid input")
 		return
 	}
 
-	// Verify member belongs to user
-	db := database.GetDB()
-	var member models.Member
-	if err := db.Where("user_id = ? AND id = ?", userID, input.MemberID).First(&member).Error; err != nil {
-		utils.RespondWithError(c, http.StatusNotFound, "Member not found")
+	if input.FromAccountID == input.ToAccountID {
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid transfer. Source and destination account cannot be the same")
 		return
 	}
 
-	// Verify from account belongs to member
-	var fromAccount models.Account
-	if err := db.Where("member_id = ? AND id = ?", input.MemberID, input.FromAccountID).First(&fromAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusNotFound, "From account not found")
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var member models.Member
+		if err := tx.Where("id = ? AND user_id = ?", input.MemberID, userID).First(&member).Error; err != nil {
+			return err
+		}
+
+		var fromAccount, toAccount models.Account
+		if err := tx.Where("id = ? AND user_id = ?", input.FromAccountID, userID).First(&fromAccount).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("id = ? AND user_id = ?", input.ToAccountID, userID).First(&toAccount).Error; err != nil {
+			return err
+		}
+
+		if fromAccount.Balance < input.Amount {
+			return gorm.ErrInvalidTransaction
+		}
+
+		fromAccount.Balance -= input.Amount
+		toAccount.Balance += input.Amount
+
+		if err := tx.Save(&fromAccount).Error; err != nil {
+			return err
+		}
+		if err := tx.Save(&toAccount).Error; err != nil {
+			return err
+		}
+
+		input.UserID = userID
+		if input.Date == "" {
+			input.Date = time.Now().Format("2006-01-02")
+		}
+
+		if err := tx.Create(&input).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		utils.RespondWithError(c, http.StatusBadRequest, "Failed to create transfer")
 		return
 	}
 
-	// Verify to account belongs to member
-	var toAccount models.Account
-	if err := db.Where("member_id = ? AND id = ?", input.MemberID, input.ToAccountID).First(&toAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusNotFound, "To account not found")
-		return
-	}
-
-	// Check if from account has enough balance
-	if fromAccount.Balance < input.Amount+input.Fee {
-		utils.RespondWithError(c, http.StatusBadRequest, "Insufficient balance in from account")
-		return
-	}
-
-	// Create transfer record
-	transfer := models.Transfer{
-		UserID:        userID,
-		MemberID:      input.MemberID,
-		FromAccountID: input.FromAccountID,
-		ToAccountID:   input.ToAccountID,
-		Amount:        input.Amount,
-		Date:          input.Date,
-		Description:   input.Description,
-		Fee:           input.Fee,
-	}
-
-	if err := db.Create(&transfer).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create transfer")
-		return
-	}
-
-	// Update account balances
-	fromAccount.Balance -= (input.Amount + input.Fee)
-	toAccount.Balance += input.Amount
-
-	if err := db.Save(&fromAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to update from account balance")
-		return
-	}
-
-	if err := db.Save(&toAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to update to account balance")
-		return
-	}
-
-	utils.RespondWithSuccess(c, transfer)
+	c.JSON(http.StatusCreated, gin.H{"message": "Transfer created successfully"})
 }
 
+// GET /transfers/:id
 func GetTransferByID(c *gin.Context) {
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+	userID, emsg := utils.GetUserIDFromToken(c)
+	if emsg != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, emsg)
 		return
 	}
+	id := c.Param("id")
 
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid transfer ID")
-		return
-	}
-
-	db := database.GetDB()
 	var transfer models.Transfer
-	if err := db.Joins("JOIN members ON members.id = transfers.member_id").
-		Where("members.user_id = ? AND transfers.id = ?", userID, id).
+	if err := database.DB.Preload("Member").Preload("FromAccount").Preload("ToAccount").
+		Joins("JOIN members ON members.id = transfers.member_id").
+		Where("transfers.id = ? AND members.user_id = ?", id, userID).
 		First(&transfer).Error; err != nil {
 		utils.RespondWithError(c, http.StatusNotFound, "Transfer not found")
 		return
 	}
 
-	utils.RespondWithSuccess(c, transfer)
+	c.JSON(http.StatusOK, transfer)
 }
 
+// DELETE /transfers/:id
 func DeleteTransfer(c *gin.Context) {
-	userID, err := utils.GetUserIDFromToken(c)
+	userID, emsg := utils.GetUserIDFromToken(c)
+	if emsg != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, emsg)
+		return
+	}
+	id := c.Param("id")
+
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var transfer models.Transfer
+		if err := tx.Preload("FromAccount").Preload("ToAccount").
+			Joins("JOIN members ON members.id = transfers.member_id").
+			Where("transfers.id = ? AND members.user_id = ?", id, userID).
+			First(&transfer).Error; err != nil {
+			return err
+		}
+
+		transfer.FromAccount.Balance += transfer.Amount
+		transfer.ToAccount.Balance -= transfer.Amount
+
+		if err := tx.Save(&transfer.FromAccount).Error; err != nil {
+			return err
+		}
+		if err := tx.Save(&transfer.ToAccount).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Delete(&transfer).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+		utils.RespondWithError(c, http.StatusBadRequest, "Failed to delete transfer")
 		return
 	}
 
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid transfer ID")
-		return
-	}
-
-	db := database.GetDB()
-	var transfer models.Transfer
-	if err := db.Joins("JOIN members ON members.id = transfers.member_id").
-		Where("members.user_id = ? AND transfers.id = ?", userID, id).
-		First(&transfer).Error; err != nil {
-		utils.RespondWithError(c, http.StatusNotFound, "Transfer not found")
-		return
-	}
-
-	// Verify from account belongs to member
-	var fromAccount models.Account
-	if err := db.Where("member_id = ? AND id = ?", transfer.MemberID, transfer.FromAccountID).First(&fromAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusNotFound, "From account not found")
-		return
-	}
-
-	// Verify to account belongs to member
-	var toAccount models.Account
-	if err := db.Where("member_id = ? AND id = ?", transfer.MemberID, transfer.ToAccountID).First(&toAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusNotFound, "To account not found")
-		return
-	}
-
-	// Revert the transfer
-	fromAccount.Balance += (transfer.Amount + transfer.Fee)
-	toAccount.Balance -= transfer.Amount
-
-	if err := db.Save(&fromAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to revert from account balance")
-		return
-	}
-
-	if err := db.Save(&toAccount).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to revert to account balance")
-		return
-	}
-
-	if err := db.Delete(&transfer).Error; err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to delete transfer")
-		return
-	}
-
-	utils.RespondWithSuccess(c, gin.H{"message": "Transfer deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Transfer deleted successfully"})
 }
