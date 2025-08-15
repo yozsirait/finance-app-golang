@@ -1,9 +1,12 @@
 package database
 
-import "finance-app/models"
+import (
+	"finance-app/models"
+	"log"
+)
 
 func MigrateDB() {
-	DB.AutoMigrate(
+	err := DB.AutoMigrate(
 		&models.User{},
 		&models.Member{},
 		&models.Account{},
@@ -14,4 +17,9 @@ func MigrateDB() {
 		&models.Transfer{},
 		&models.SavingTarget{},
 	)
+	if err != nil {
+		log.Fatal("Failed to migrate database:", err)
+	}
+
+	log.Println("Database migration completed")
 }

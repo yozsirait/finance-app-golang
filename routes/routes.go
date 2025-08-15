@@ -2,12 +2,15 @@ package routes
 
 import (
 	"finance-app/controllers"
+	"finance-app/database"
 	"finance-app/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter() *gin.Engine {
+	db := database.GetDB()
+	transactionController := controllers.NewTransactionController(db)
 	r := gin.Default()
 
 	// Auth routes
@@ -52,11 +55,11 @@ func SetupRouter() *gin.Engine {
 		auth.DELETE("/budgets/:id", controllers.DeleteBudget)
 
 		// Transaction routes
-		auth.GET("/transactions", controllers.GetTransactions)
-		auth.POST("/transactions", controllers.CreateTransaction)
-		auth.GET("/transactions/:id", controllers.GetTransactionByID)
-		auth.PUT("/transactions/:id", controllers.UpdateTransaction)
-		auth.DELETE("/transactions/:id", controllers.DeleteTransaction)
+		auth.POST("/transactions", transactionController.CreateTransaction)
+		auth.GET("/transactions", transactionController.GetTransactions)
+		auth.GET("/transactions/:id", transactionController.GetTransactionByID)
+		auth.PUT("/transactions/:id", transactionController.UpdateTransaction)
+		auth.DELETE("/transactions/:id", transactionController.DeleteTransaction)
 
 		// Recurring Transaction routes
 		auth.GET("/recurring-transactions", controllers.GetRecurringTransactions)
