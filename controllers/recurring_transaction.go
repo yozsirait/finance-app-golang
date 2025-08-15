@@ -32,7 +32,7 @@ func GetRecurringTransactions(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, recurringTransactions)
+	utils.RespondWithSuccess(c, recurringTransactions)
 }
 
 func CreateRecurringTransaction(c *gin.Context) {
@@ -101,7 +101,7 @@ func CreateRecurringTransaction(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, recurringTransaction)
+	utils.RespondWithSuccess(c, recurringTransaction)
 }
 
 func GetRecurringTransactionByID(c *gin.Context) {
@@ -124,7 +124,7 @@ func GetRecurringTransactionByID(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, recurringTransaction)
+	utils.RespondWithSuccess(c, recurringTransaction)
 }
 
 func UpdateRecurringTransaction(c *gin.Context) {
@@ -200,7 +200,7 @@ func UpdateRecurringTransaction(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, recurringTransaction)
+	utils.RespondWithSuccess(c, recurringTransaction)
 }
 
 func DeleteRecurringTransaction(c *gin.Context) {
@@ -222,5 +222,5 @@ func DeleteRecurringTransaction(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "Recurring transaction deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "Recurring transaction deleted successfully"})
 }

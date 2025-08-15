@@ -26,7 +26,7 @@ func GetCurrentUser(c *gin.Context) {
 
 	// Don't return password hash
 	user.Password = ""
-	utils.RespondWithJSON(c, http.StatusOK, user)
+	utils.RespondWithSuccess(c, user)
 }
 
 func UpdateUser(c *gin.Context) {
@@ -76,7 +76,7 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	user.Password = ""
-	utils.RespondWithJSON(c, http.StatusOK, user)
+	utils.RespondWithSuccess(c, user)
 }
 
 func DeleteUser(c *gin.Context) {
@@ -92,5 +92,5 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "User deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "User deleted successfully"})
 }

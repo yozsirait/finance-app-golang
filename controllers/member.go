@@ -24,7 +24,7 @@ func GetMembers(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, members)
+	utils.RespondWithSuccess(c, members)
 }
 
 func CreateMember(c *gin.Context) {
@@ -54,7 +54,7 @@ func CreateMember(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, member)
+	utils.RespondWithSuccess(c, member)
 }
 
 func GetMemberByID(c *gin.Context) {
@@ -77,7 +77,7 @@ func GetMemberByID(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, member)
+	utils.RespondWithSuccess(c, member)
 }
 
 func UpdateMember(c *gin.Context) {
@@ -115,7 +115,7 @@ func UpdateMember(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, member)
+	utils.RespondWithSuccess(c, member)
 }
 
 func DeleteMember(c *gin.Context) {
@@ -137,5 +137,5 @@ func DeleteMember(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "Member deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "Member deleted successfully"})
 }

@@ -36,7 +36,7 @@ func GetBudgets(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, budgets)
+	utils.RespondWithSuccess(c, budgets)
 }
 
 func CreateBudget(c *gin.Context) {
@@ -77,7 +77,7 @@ func CreateBudget(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, budget)
+	utils.RespondWithSuccess(c, budget)
 }
 
 func GetBudgetByID(c *gin.Context) {
@@ -100,7 +100,7 @@ func GetBudgetByID(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, budget)
+	utils.RespondWithSuccess(c, budget)
 }
 
 func UpdateBudget(c *gin.Context) {
@@ -146,7 +146,7 @@ func UpdateBudget(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, budget)
+	utils.RespondWithSuccess(c, budget)
 }
 
 func DeleteBudget(c *gin.Context) {
@@ -168,5 +168,5 @@ func DeleteBudget(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "Budget deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "Budget deleted successfully"})
 }

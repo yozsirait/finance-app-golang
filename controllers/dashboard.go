@@ -77,7 +77,7 @@ func GetDashboardSummary(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{
+	utils.RespondWithSuccess(c, gin.H{
 		"total_balance":         totalBalance.Total,
 		"current_month_income":  totalIncome.Total,
 		"current_month_expense": totalExpense.Total,
@@ -112,7 +112,7 @@ func GetDashboardTransactions(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, transactions)
+	utils.RespondWithSuccess(c, transactions)
 }
 
 func GetDashboardCategories(c *gin.Context) {
@@ -149,7 +149,7 @@ func GetDashboardCategories(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, categories)
+	utils.RespondWithSuccess(c, categories)
 }
 
 func GetDashboardBudgets(c *gin.Context) {
@@ -186,5 +186,5 @@ func GetDashboardBudgets(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, budgets)
+	utils.RespondWithSuccess(c, budgets)
 }

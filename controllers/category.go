@@ -32,7 +32,7 @@ func GetCategories(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, categories)
+	utils.RespondWithSuccess(c, categories)
 }
 
 func CreateCategory(c *gin.Context) {
@@ -64,7 +64,7 @@ func CreateCategory(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, category)
+	utils.RespondWithSuccess(c, category)
 }
 
 func GetCategoryByID(c *gin.Context) {
@@ -87,7 +87,7 @@ func GetCategoryByID(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, category)
+	utils.RespondWithSuccess(c, category)
 }
 
 func UpdateCategory(c *gin.Context) {
@@ -133,7 +133,7 @@ func UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, category)
+	utils.RespondWithSuccess(c, category)
 }
 
 func DeleteCategory(c *gin.Context) {
@@ -155,5 +155,5 @@ func DeleteCategory(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "Category deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "Category deleted successfully"})
 }

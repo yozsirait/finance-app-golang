@@ -45,7 +45,7 @@ func GetSavingTargets(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, savingTargets)
+	utils.RespondWithSuccess(c, savingTargets)
 }
 
 func CreateSavingTarget(c *gin.Context) {
@@ -100,7 +100,7 @@ func CreateSavingTarget(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, savingTarget)
+	utils.RespondWithSuccess(c, savingTarget)
 }
 
 func GetSavingTargetByID(c *gin.Context) {
@@ -125,7 +125,7 @@ func GetSavingTargetByID(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, savingTarget)
+	utils.RespondWithSuccess(c, savingTarget)
 }
 
 func UpdateSavingTarget(c *gin.Context) {
@@ -185,7 +185,7 @@ func UpdateSavingTarget(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, savingTarget)
+	utils.RespondWithSuccess(c, savingTarget)
 }
 
 func DeleteSavingTarget(c *gin.Context) {
@@ -209,5 +209,5 @@ func DeleteSavingTarget(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "Saving target deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "Saving target deleted successfully"})
 }

@@ -33,7 +33,7 @@ func GetAccounts(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, accounts)
+	utils.RespondWithSuccess(c, accounts)
 }
 
 func CreateAccount(c *gin.Context) {
@@ -77,7 +77,7 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, account)
+	utils.RespondWithSuccess(c, account)
 }
 
 func GetAccountByID(c *gin.Context) {
@@ -102,7 +102,7 @@ func GetAccountByID(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, account)
+	utils.RespondWithSuccess(c, account)
 }
 
 func UpdateAccount(c *gin.Context) {
@@ -154,7 +154,7 @@ func UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, account)
+	utils.RespondWithSuccess(c, account)
 }
 
 func DeleteAccount(c *gin.Context) {
@@ -184,5 +184,5 @@ func DeleteAccount(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "Account deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "Account deleted successfully"})
 }

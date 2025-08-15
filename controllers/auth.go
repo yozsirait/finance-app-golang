@@ -40,7 +40,7 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, gin.H{"message": "User registered successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "User registered successfully"})
 }
 
 func Login(c *gin.Context) {
@@ -72,5 +72,5 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"token": token})
+	utils.RespondWithSuccess(c, gin.H{"token": token})
 }

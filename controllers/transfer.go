@@ -37,7 +37,7 @@ func GetTransfers(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, transfers)
+	utils.RespondWithSuccess(c, transfers)
 }
 
 func CreateTransfer(c *gin.Context) {
@@ -121,7 +121,7 @@ func CreateTransfer(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusCreated, transfer)
+	utils.RespondWithSuccess(c, transfer)
 }
 
 func GetTransferByID(c *gin.Context) {
@@ -146,7 +146,7 @@ func GetTransferByID(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, transfer)
+	utils.RespondWithSuccess(c, transfer)
 }
 
 func DeleteTransfer(c *gin.Context) {
@@ -204,5 +204,5 @@ func DeleteTransfer(c *gin.Context) {
 		return
 	}
 
-	utils.RespondWithJSON(c, http.StatusOK, gin.H{"message": "Transfer deleted successfully"})
+	utils.RespondWithSuccess(c, gin.H{"message": "Transfer deleted successfully"})
 }
