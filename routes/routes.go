@@ -83,9 +83,16 @@ func SetupRouter() *gin.Engine {
 		// Dashboard routes
 		auth.GET("/dashboard", controllers.GetDashboard)
 
-		// Reports routes
 		// Report routes
-		auth.GET("/reports/transactions", controllers.GetTransactionReport)
+		auth.GET("/reports/transactions", controllers.GetReportTransactions)
+		auth.GET("/reports/summary", controllers.GetReportSummary)
+		auth.GET("/reports/budget", controllers.GetBudgetReport)
+		auth.GET("/reports/saving", controllers.GetSavingReport)
+		auth.GET("/reports/members-comparison", controllers.GetMembersComparisonReport)
+		auth.GET("/reports/members-comparison-chart", controllers.GetMemberComparisonChart)
+		// Report export
+		auth.GET("/reports/export/csv", controllers.ExportTransactionsCSV)
+		auth.GET("/reports/export/pdf", controllers.ExportTransactionsPDF)
 
 	}
 	return r
