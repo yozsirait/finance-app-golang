@@ -45,7 +45,7 @@ func Register(c *gin.Context) {
 
 func Login(c *gin.Context) {
 	var input struct {
-		Username string `json:"username" binding:"required"`
+		Email    string `json:"email" binding:"required"`
 		Password string `json:"password" binding:"required"`
 	}
 
@@ -56,13 +56,13 @@ func Login(c *gin.Context) {
 
 	var user models.User
 	db := database.GetDB()
-	if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid username or password")
+	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid username or password")
+		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
 
