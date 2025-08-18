@@ -33,9 +33,11 @@ func SetupRouter() *gin.Engine {
 		// Account routes
 		auth.GET("/accounts", controllers.GetAccounts) // Bisa filter member_id & type
 		auth.POST("/accounts", controllers.CreateAccount)
+		auth.GET("/accounts/types", controllers.GetAccountTypes)
 		auth.GET("/accounts/:id", controllers.GetAccountByID)
 		auth.PUT("/accounts/:id", controllers.UpdateAccount)
 		auth.DELETE("/accounts/:id", controllers.DeleteAccount)
+		// new endpoint
 
 		// Category routes
 		auth.GET("/categories", controllers.GetCategories) // ?type=income&search=food

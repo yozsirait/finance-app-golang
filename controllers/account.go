@@ -59,6 +59,12 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
+	// validate account type
+	if !models.ValidAccountTypes[input.Type] {
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid account type, allowed: Bank, e-Wallet, Cash")
+		return
+	}
+
 	db := database.GetDB()
 	var member models.Member
 	if err := db.Where("user_id = ? AND id = ?", userID, input.MemberID).First(&member).Error; err != nil {
@@ -143,6 +149,10 @@ func UpdateAccount(c *gin.Context) {
 		account.Name = input.Name
 	}
 	if input.Type != "" {
+		if !models.ValidAccountTypes[input.Type] {
+			utils.RespondWithError(c, http.StatusBadRequest, "Invalid account type, allowed: Bank, e-Wallet, Cash")
+			return
+		}
 		account.Type = input.Type
 	}
 	if input.Currency != "" {
@@ -185,4 +195,14 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	utils.RespondWithSuccess(c, gin.H{"message": "Account deleted successfully"})
+}
+
+// ✅ New endpoint: list available account types
+func GetAccountTypes(c *gin.Context) {
+	types := []string{
+		models.AccountTypeBank,
+		models.AccountTypeEWallet,
+		models.AccountTypeCash,
+	}
+	utils.RespondWithSuccess(c, gin.H{"types": types})
 }
