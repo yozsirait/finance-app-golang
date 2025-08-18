@@ -82,7 +82,11 @@ func SetupRouter() *gin.Engine {
 
 		// Dashboard routes
 		auth.GET("/dashboard", controllers.GetDashboard)
-	}
 
+		// Reports routes
+		// Report routes
+		auth.GET("/reports/transactions", controllers.GetTransactionReport)
+
+	}
 	return r
 }
