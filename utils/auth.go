@@ -22,23 +22,26 @@ func GenerateToken(userID uint) (string, error) {
 }
 
 func GetUserIDFromToken(c *gin.Context) (uint, error) {
-	config := config.LoadConfig()
+	cfg := config.LoadConfig()
 
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		return 0, errors.New("authorization header is required")
 	}
 
-	tokenString := strings.Split(authHeader, " ")[1]
-	if tokenString == "" {
-		return 0, errors.New("token is required")
+	// Pastikan format "Bearer <token>"
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return 0, errors.New("authorization header format must be Bearer {token}")
 	}
+
+	tokenString := parts[1]
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
-		return []byte(config.JWTSecret), nil
+		return []byte(cfg.JWTSecret), nil
 	})
 
 	if err != nil {
@@ -57,7 +60,10 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		_, err := GetUserIDFromToken(c)
 		if err != nil {
-			c.JSON(401, gin.H{"error": "Unauthorized"})
+			// Tambahin log
+			println("JWT Error:", err.Error())
+
+			c.JSON(401, gin.H{"error": "Unauthorized", "detail": err.Error()})
 			c.Abort()
 			return
 		}

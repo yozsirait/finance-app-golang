@@ -10,6 +10,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Register godoc
+// @Summary Register new user
+// @Description Membuat user baru
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body models.AuthRegisterRequest true "Register user input"
+// @Success 201 {object} models.AuthResponse
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /register [post]
 func Register(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required"`
@@ -43,6 +54,17 @@ func Register(c *gin.Context) {
 	utils.RespondWithSuccess(c, gin.H{"message": "User registered successfully"})
 }
 
+// Login godoc
+// @Summary Login user
+// @Description Login dengan email & password, mendapatkan token JWT
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body models.AuthLoginRequest true "Login user input"
+// @Success 200 {object} models.AuthResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /login [post]
 func Login(c *gin.Context) {
 	var input struct {
 		Email    string `json:"email" binding:"required"`

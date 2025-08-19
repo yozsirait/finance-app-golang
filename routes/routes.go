@@ -10,90 +10,124 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// Auth routes
-	r.POST("/register", controllers.Register)
-	r.POST("/login", controllers.Login)
+	// =========================
+	// Public routes
+	// =========================
+	r.POST("/register", controllers.Register) // @Tags Auth
+	r.POST("/login", controllers.Login)       // @Tags Auth
 
+	// =========================
 	// Authenticated routes
+	// =========================
 	auth := r.Group("/api")
 	auth.Use(utils.JWTAuthMiddleware())
 	{
-		// User routes
-		auth.GET("/user", controllers.GetCurrentUser)
-		auth.PUT("/user", controllers.UpdateUser)
-		auth.DELETE("/user", controllers.DeleteUser)
+		// ========== User ==========
+		user := auth.Group("/user")
+		{
+			user.GET("", controllers.GetCurrentUser) // @Tags User
+			user.PUT("", controllers.UpdateUser)     // @Tags User
+			user.DELETE("", controllers.DeleteUser)  // @Tags User
+		}
 
-		// Member routes
-		auth.GET("/members", controllers.GetMembers)
-		auth.POST("/members", controllers.CreateMember)
-		auth.GET("/members/:id", controllers.GetMemberByID)
-		auth.PUT("/members/:id", controllers.UpdateMember)
-		auth.DELETE("/members/:id", controllers.DeleteMember)
+		// ========== Members ==========
+		members := auth.Group("/members")
+		{
+			members.GET("", controllers.GetMembers)          // @Tags Member
+			members.POST("", controllers.CreateMember)       // @Tags Member
+			members.GET("/:id", controllers.GetMemberByID)   // @Tags Member
+			members.PUT("/:id", controllers.UpdateMember)    // @Tags Member
+			members.DELETE("/:id", controllers.DeleteMember) // @Tags Member
+		}
 
-		// Account routes
-		auth.GET("/accounts", controllers.GetAccounts) // Bisa filter member_id & type
-		auth.POST("/accounts", controllers.CreateAccount)
-		auth.GET("/accounts/types", controllers.GetAccountTypes)
-		auth.GET("/accounts/:id", controllers.GetAccountByID)
-		auth.PUT("/accounts/:id", controllers.UpdateAccount)
-		auth.DELETE("/accounts/:id", controllers.DeleteAccount)
-		// new endpoint
+		// ========== Accounts ==========
+		accounts := auth.Group("/accounts")
+		{
+			accounts.GET("", controllers.GetAccounts)           // @Tags Account
+			accounts.POST("", controllers.CreateAccount)        // @Tags Account
+			accounts.GET("/types", controllers.GetAccountTypes) // @Tags Account
+			accounts.GET("/:id", controllers.GetAccountByID)    // @Tags Account
+			accounts.PUT("/:id", controllers.UpdateAccount)     // @Tags Account
+			accounts.DELETE("/:id", controllers.DeleteAccount)  // @Tags Account
+		}
 
-		// Category routes
-		auth.GET("/categories", controllers.GetCategories) // ?type=income&search=food
-		auth.POST("/categories", controllers.CreateCategory)
-		auth.GET("/categories/:id", controllers.GetCategoryByID)
-		auth.PUT("/categories/:id", controllers.UpdateCategory)
-		auth.DELETE("/categories/:id", controllers.DeleteCategory)
+		// ========== Categories ==========
+		categories := auth.Group("/categories")
+		{
+			categories.GET("", controllers.GetCategories)         // @Tags Category
+			categories.POST("", controllers.CreateCategory)       // @Tags Category
+			categories.GET("/:id", controllers.GetCategoryByID)   // @Tags Category
+			categories.PUT("/:id", controllers.UpdateCategory)    // @Tags Category
+			categories.DELETE("/:id", controllers.DeleteCategory) // @Tags Category
+		}
 
-		// Budget routes
-		auth.GET("/budgets", controllers.GetBudgets)
-		auth.POST("/budgets", controllers.CreateBudget)
-		auth.GET("/budgets/:id", controllers.GetBudgetByID)
-		auth.PUT("/budgets/:id", controllers.UpdateBudget)
-		auth.DELETE("/budgets/:id", controllers.DeleteBudget)
+		// ========== Budgets ==========
+		budgets := auth.Group("/budgets")
+		{
+			budgets.GET("", controllers.GetBudgets)          // @Tags Budget
+			budgets.POST("", controllers.CreateBudget)       // @Tags Budget
+			budgets.GET("/:id", controllers.GetBudgetByID)   // @Tags Budget
+			budgets.PUT("/:id", controllers.UpdateBudget)    // @Tags Budget
+			budgets.DELETE("/:id", controllers.DeleteBudget) // @Tags Budget
+		}
 
-		// Transaction routes
-		auth.GET("/transactions", controllers.GetTransactions)
-		auth.GET("/transactions/:id", controllers.GetTransactionByID)
-		auth.POST("/transactions", controllers.CreateTransaction)
-		auth.PUT("/transactions/:id", controllers.UpdateTransaction)
-		auth.DELETE("/transactions/:id", controllers.DeleteTransaction)
+		// ========== Transactions ==========
+		transactions := auth.Group("/transactions")
+		{
+			transactions.GET("", controllers.GetTransactions)          // @Tags Transaction
+			transactions.GET("/:id", controllers.GetTransactionByID)   // @Tags Transaction
+			transactions.POST("", controllers.CreateTransaction)       // @Tags Transaction
+			transactions.PUT("/:id", controllers.UpdateTransaction)    // @Tags Transaction
+			transactions.DELETE("/:id", controllers.DeleteTransaction) // @Tags Transaction
+		}
 
-		// Recurring Transaction routes
-		auth.GET("/recurring-transactions", controllers.GetRecurringTransactions)
-		auth.POST("/recurring-transactions", controllers.CreateRecurringTransaction)
-		auth.GET("/recurring-transactions/:id", controllers.GetRecurringTransactionByID)
-		auth.PUT("/recurring-transactions/:id", controllers.UpdateRecurringTransaction)
-		auth.DELETE("/recurring-transactions/:id", controllers.DeleteRecurringTransaction)
+		// ========== Recurring Transactions ==========
+		recurring := auth.Group("/recurring-transactions")
+		{
+			recurring.GET("", controllers.GetRecurringTransactions)          // @Tags RecurringTransaction
+			recurring.POST("", controllers.CreateRecurringTransaction)       // @Tags RecurringTransaction
+			recurring.GET("/:id", controllers.GetRecurringTransactionByID)   // @Tags RecurringTransaction
+			recurring.PUT("/:id", controllers.UpdateRecurringTransaction)    // @Tags RecurringTransaction
+			recurring.DELETE("/:id", controllers.DeleteRecurringTransaction) // @Tags RecurringTransaction
+		}
 
-		// Transfer routes
-		auth.GET("/transfers", controllers.GetTransfers)
-		auth.POST("/transfers", controllers.CreateTransfer)
-		auth.GET("/transfers/:id", controllers.GetTransferByID)
-		auth.DELETE("/transfers/:id", controllers.DeleteTransfer)
+		// ========== Transfers ==========
+		transfers := auth.Group("/transfers")
+		{
+			transfers.GET("", controllers.GetTransfers)          // @Tags Transfer
+			transfers.POST("", controllers.CreateTransfer)       // @Tags Transfer
+			transfers.GET("/:id", controllers.GetTransferByID)   // @Tags Transfer
+			transfers.DELETE("/:id", controllers.DeleteTransfer) // @Tags Transfer
+		}
 
-		// Saving Target routes
-		auth.GET("/saving-targets", controllers.GetSavingTargets)
-		auth.POST("/saving-targets", controllers.CreateSavingTarget)
-		auth.GET("/saving-targets/:id", controllers.GetSavingTargetByID)
-		auth.PUT("/saving-targets/:id", controllers.UpdateSavingTarget)
-		auth.DELETE("/saving-targets/:id", controllers.DeleteSavingTarget)
+		// ========== Saving Targets ==========
+		saving := auth.Group("/saving-targets")
+		{
+			saving.GET("", controllers.GetSavingTargets)          // @Tags SavingTarget
+			saving.POST("", controllers.CreateSavingTarget)       // @Tags SavingTarget
+			saving.GET("/:id", controllers.GetSavingTargetByID)   // @Tags SavingTarget
+			saving.PUT("/:id", controllers.UpdateSavingTarget)    // @Tags SavingTarget
+			saving.DELETE("/:id", controllers.DeleteSavingTarget) // @Tags SavingTarget
+		}
 
-		// Dashboard routes
-		auth.GET("/dashboard", controllers.GetDashboard)
+		// ========== Dashboard ==========
+		auth.GET("/dashboard", controllers.GetDashboard) // @Tags Dashboard
 
-		// Report routes
-		auth.GET("/reports/transactions", controllers.GetReportTransactions)
-		auth.GET("/reports/summary", controllers.GetReportSummary)
-		auth.GET("/reports/budget", controllers.GetBudgetReport)
-		auth.GET("/reports/saving", controllers.GetSavingReport)
-		auth.GET("/reports/members-comparison", controllers.GetMembersComparisonReport)
-		auth.GET("/reports/members-comparison-chart", controllers.GetMemberComparisonChart)
-		// Report export
-		auth.GET("/reports/export/csv", controllers.ExportTransactionsCSV)
-		auth.GET("/reports/export/pdf", controllers.ExportTransactionsPDF)
+		// ========== Reports ==========
+		reports := auth.Group("/reports")
+		{
+			reports.GET("/transactions", controllers.GetReportTransactions)                // @Tags Report
+			reports.GET("/summary", controllers.GetReportSummary)                          // @Tags Report
+			reports.GET("/budget", controllers.GetBudgetReport)                            // @Tags Report
+			reports.GET("/saving", controllers.GetSavingReport)                            // @Tags Report
+			reports.GET("/members-comparison", controllers.GetMembersComparisonReport)     // @Tags Report
+			reports.GET("/members-comparison-chart", controllers.GetMemberComparisonChart) // @Tags Report
 
+			// Report export
+			reports.GET("/export/csv", controllers.ExportTransactionsCSV) // @Tags Report
+			reports.GET("/export/pdf", controllers.ExportTransactionsPDF) // @Tags Report
+		}
 	}
+
 	return r
 }

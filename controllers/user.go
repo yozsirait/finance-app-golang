@@ -10,6 +10,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// GetCurrentUser godoc
+// @Summary Get current user
+// @Description Mendapatkan detail user yang sedang login (berdasarkan token JWT)
+// @Tags User
+// @Produce json
+// @Success 200 {object} models.UserResponse
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /user [get]
+// @Security BearerAuth
 func GetCurrentUser(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
@@ -24,11 +34,25 @@ func GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Don't return password hash
+	// Jangan return password hash
 	user.Password = ""
 	utils.RespondWithSuccess(c, user)
 }
 
+// UpdateUser godoc
+// @Summary Update current user
+// @Description Update data user yang sedang login
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param body body models.UserUpdateRequest true "Update user input"
+// @Success 200 {object} models.UserResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /user [put]
+// @Security BearerAuth
 func UpdateUser(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
@@ -54,7 +78,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Update fields if provided
+	// Update fields jika ada input
 	if input.Username != "" {
 		user.Username = input.Username
 	}
@@ -79,6 +103,16 @@ func UpdateUser(c *gin.Context) {
 	utils.RespondWithSuccess(c, user)
 }
 
+// DeleteUser godoc
+// @Summary Delete current user
+// @Description Hapus user yang sedang login (berdasarkan token JWT)
+// @Tags User
+// @Produce json
+// @Success 200 {object} models.DeleteResponse
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /user [delete]
+// @Security BearerAuth
 func DeleteUser(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(c)
 	if err != nil {
