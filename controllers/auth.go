@@ -56,13 +56,12 @@ func Register(c *gin.Context) {
 
 // Login godoc
 // @Summary Login user
-// @Description Login dengan email & password, mendapatkan token JWT
+// @Description Autentikasi user dan mendapatkan JWT token
 // @Tags Auth
 // @Accept json
 // @Produce json
-// @Param body body models.AuthLoginRequest true "Login user input"
+// @Param body body models.AuthLoginRequest true "Login credentials"
 // @Success 200 {object} models.AuthResponse
-// @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /login [post]
 func Login(c *gin.Context) {
@@ -95,4 +94,19 @@ func Login(c *gin.Context) {
 	}
 
 	utils.RespondWithSuccess(c, gin.H{"token": token})
+}
+
+// Logout godoc
+// @Summary Logout user
+// @Description Logout dengan menghapus token di sisi client (stateless JWT).
+// @Tags Auth
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /logout [post]
+// @Security BearerAuth
+func Logout(c *gin.Context) {
+	// Karena JWT stateless, server hanya balikin response sukses.
+	utils.RespondWithSuccess(c, gin.H{
+		"message": "Logout successful. Please remove token on client side.",
+	})
 }

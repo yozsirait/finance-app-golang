@@ -12,12 +12,11 @@ import (
 
 // GetCurrentUser godoc
 // @Summary Get current user
-// @Description Mendapatkan detail user yang sedang login (berdasarkan token JWT)
+// @Description Mendapatkan detail user yang sedang login
 // @Tags User
 // @Produce json
 // @Success 200 {object} models.UserResponse
 // @Failure 401 {object} map[string]string
-// @Failure 404 {object} map[string]string
 // @Router /user [get]
 // @Security BearerAuth
 func GetCurrentUser(c *gin.Context) {
@@ -47,10 +46,7 @@ func GetCurrentUser(c *gin.Context) {
 // @Produce json
 // @Param body body models.UserUpdateRequest true "Update user input"
 // @Success 200 {object} models.UserResponse
-// @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 409 {object} map[string]string
 // @Router /user [put]
 // @Security BearerAuth
 func UpdateUser(c *gin.Context) {
@@ -105,12 +101,11 @@ func UpdateUser(c *gin.Context) {
 
 // DeleteUser godoc
 // @Summary Delete current user
-// @Description Hapus user yang sedang login (berdasarkan token JWT)
+// @Description Hapus user yang sedang login
 // @Tags User
 // @Produce json
 // @Success 200 {object} models.DeleteResponse
 // @Failure 401 {object} map[string]string
-// @Failure 500 {object} map[string]string
 // @Router /user [delete]
 // @Security BearerAuth
 func DeleteUser(c *gin.Context) {

@@ -22,26 +22,29 @@ func GenerateToken(userID uint) (string, error) {
 }
 
 func GetUserIDFromToken(c *gin.Context) (uint, error) {
-	cfg := config.LoadConfig()
+	config := config.LoadConfig()
 
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		return 0, errors.New("authorization header is required")
 	}
 
-	// Pastikan format "Bearer <token>"
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return 0, errors.New("authorization header format must be Bearer {token}")
+	// kalau tidak ada prefix "Bearer", otomatis tambahin
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		authHeader = "Bearer " + authHeader
 	}
 
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[1] == "" {
+		return 0, errors.New("invalid authorization header format")
+	}
 	tokenString := parts[1]
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
-		return []byte(cfg.JWTSecret), nil
+		return []byte(config.JWTSecret), nil
 	})
 
 	if err != nil {

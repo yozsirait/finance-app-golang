@@ -1,8 +1,10 @@
 package main
 
 import (
+	"finance-app/config"
 	"finance-app/database"
 	"finance-app/routes"
+	"fmt"
 
 	_ "finance-app/docs" // docs swagger hasil dari swag init
 
@@ -21,16 +23,21 @@ import (
 // @license.name MIT
 // @license.url https://opensource.org/licenses/MIT
 
-// @title Finance App API
-// @version 1.0
-// @description API documentation for Finance App
 // @host localhost:8080
 // @BasePath /api
 // @schemes http
+
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
+// @description Format: "Bearer {token}"
 func main() {
+	// Load config
+	cfg := config.LoadConfig()
+
+	// DEBUG: print JWT secret yang dipakai
+	fmt.Println("🚀 Using JWT_SECRET:", cfg.JWTSecret)
+
 	// Initialize database
 	database.InitDB()
 	database.MigrateDB()

@@ -72,9 +72,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Login dengan email & password, mendapatkan token JWT
+      description: Autentikasi user dan mendapatkan JWT token
       parameters:
-      - description: Login user input
+      - description: Login credentials
         in: body
         name: body
         required: true
@@ -87,12 +87,6 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/models.AuthResponse'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
         "401":
           description: Unauthorized
           schema:
@@ -138,7 +132,7 @@ paths:
       - Auth
   /user:
     delete:
-      description: Hapus user yang sedang login (berdasarkan token JWT)
+      description: Hapus user yang sedang login
       produces:
       - application/json
       responses:
@@ -152,19 +146,13 @@ paths:
             additionalProperties:
               type: string
             type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
       security:
       - BearerAuth: []
       summary: Delete current user
       tags:
       - User
     get:
-      description: Mendapatkan detail user yang sedang login (berdasarkan token JWT)
+      description: Mendapatkan detail user yang sedang login
       produces:
       - application/json
       responses:
@@ -174,12 +162,6 @@ paths:
             $ref: '#/definitions/models.UserResponse'
         "401":
           description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
           schema:
             additionalProperties:
               type: string
@@ -207,26 +189,8 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/models.UserResponse'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
         "401":
           description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Conflict
           schema:
             additionalProperties:
               type: string
@@ -240,6 +204,7 @@ schemes:
 - http
 securityDefinitions:
   BearerAuth:
+    description: 'Format: "Bearer {token}"'
     in: header
     name: Authorization
     type: apiKey
