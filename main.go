@@ -5,9 +5,11 @@ import (
 	"finance-app/database"
 	"finance-app/routes"
 	"fmt"
+	"time"
 
 	_ "finance-app/docs" // docs swagger hasil dari swag init
 
+	"github.com/gin-contrib/cors"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -44,6 +46,16 @@ func main() {
 
 	// Setup router
 	router := routes.SetupRouter()
+
+	// Tambahin middleware CORS
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"}, // alamat frontend
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	// Swagger endpoint
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
