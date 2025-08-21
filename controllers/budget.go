@@ -57,11 +57,16 @@ func CreateBudget(c *gin.Context) {
 		return
 	}
 
-	// Verify category belongs to user
 	db := database.GetDB()
 	var category models.Category
 	if err := db.Where("user_id = ? AND id = ?", userID, input.CategoryID).First(&category).Error; err != nil {
 		utils.RespondWithError(c, http.StatusNotFound, "Category not found")
+		return
+	}
+
+	// ✅ Validasi hanya untuk kategori tipe expense
+	if category.Type != "expense" {
+		utils.RespondWithError(c, http.StatusBadRequest, "Budget hanya dapat dibuat untuk kategori pengeluaran (expense)")
 		return
 	}
 
@@ -74,29 +79,6 @@ func CreateBudget(c *gin.Context) {
 
 	if err := db.Create(&budget).Error; err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create budget")
-		return
-	}
-
-	utils.RespondWithSuccess(c, budget)
-}
-
-func GetBudgetByID(c *gin.Context) {
-	userID, err := utils.GetUserIDFromToken(c)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
-		return
-	}
-
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid budget ID")
-		return
-	}
-
-	db := database.GetDB()
-	var budget models.BudgetCategory
-	if err := db.Where("user_id = ? AND id = ?", userID, id).First(&budget).Error; err != nil {
-		utils.RespondWithError(c, http.StatusNotFound, "Budget not found")
 		return
 	}
 
@@ -133,7 +115,18 @@ func UpdateBudget(c *gin.Context) {
 		return
 	}
 
-	// Update fields if provided
+	// ✅ Pastikan category parent adalah expense
+	var category models.Category
+	if err := db.Where("id = ?", budget.CategoryID).First(&category).Error; err != nil {
+		utils.RespondWithError(c, http.StatusNotFound, "Category not found")
+		return
+	}
+	if category.Type != "expense" {
+		utils.RespondWithError(c, http.StatusBadRequest, "Budget hanya dapat diupdate untuk kategori pengeluaran (expense)")
+		return
+	}
+
+	// Update fields jika ada
 	if input.Amount != 0 {
 		budget.Amount = input.Amount
 	}
@@ -143,6 +136,29 @@ func UpdateBudget(c *gin.Context) {
 
 	if err := db.Save(&budget).Error; err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to update budget")
+		return
+	}
+
+	utils.RespondWithSuccess(c, budget)
+}
+
+func GetBudgetByID(c *gin.Context) {
+	userID, err := utils.GetUserIDFromToken(c)
+	if err != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid budget ID")
+		return
+	}
+
+	db := database.GetDB()
+	var budget models.BudgetCategory
+	if err := db.Where("user_id = ? AND id = ?", userID, id).First(&budget).Error; err != nil {
+		utils.RespondWithError(c, http.StatusNotFound, "Budget not found")
 		return
 	}
 
