@@ -6,6 +6,7 @@ import (
 	"finance-app/utils"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -64,12 +65,32 @@ func CreateBudget(c *gin.Context) {
 		return
 	}
 
-	// ✅ Validasi hanya untuk kategori tipe expense
+	// ✅ Hanya untuk kategori expense
 	if category.Type != "expense" {
-		utils.RespondWithError(c, http.StatusBadRequest, "Budget hanya dapat dibuat untuk kategori pengeluaran (expense)")
+		utils.RespondWithError(c, http.StatusBadRequest, "Budget hanya untuk kategori expense")
 		return
 	}
 
+	// ✅ Cek kalau sudah ada budget aktif di periode yang sama
+	now := time.Now()
+	var existing models.BudgetCategory
+	query := db.Where("user_id = ? AND category_id = ? AND period = ?", userID, input.CategoryID, input.Period)
+
+	if input.Period == "monthly" {
+		query = query.Where("MONTH(created_at) = ? AND YEAR(created_at) = ?", now.Month(), now.Year())
+	} else if input.Period == "yearly" {
+		query = query.Where("YEAR(created_at) = ?", now.Year())
+	} else if input.Period == "weekly" {
+		// MySQL style untuk week number
+		query = query.Where("YEARWEEK(created_at, 1) = YEARWEEK(?, 1)", now)
+	}
+
+	if err := query.First(&existing).Error; err == nil {
+		utils.RespondWithError(c, http.StatusBadRequest, "Budget untuk kategori & periode ini sudah ada")
+		return
+	}
+
+	// ✅ Simpan budget baru
 	budget := models.BudgetCategory{
 		UserID:     userID,
 		CategoryID: input.CategoryID,
@@ -100,7 +121,7 @@ func UpdateBudget(c *gin.Context) {
 
 	var input struct {
 		Amount float64 `json:"amount"`
-		Period string  `json:"period"`
+		Period string  `json:"period" binding:"omitempty,oneof=monthly weekly yearly"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -122,11 +143,31 @@ func UpdateBudget(c *gin.Context) {
 		return
 	}
 	if category.Type != "expense" {
-		utils.RespondWithError(c, http.StatusBadRequest, "Budget hanya dapat diupdate untuk kategori pengeluaran (expense)")
+		utils.RespondWithError(c, http.StatusBadRequest, "Budget hanya dapat diupdate untuk kategori expense")
 		return
 	}
 
-	// Update fields jika ada
+	// ✅ Validasi duplikat budget kalau period diubah
+	if input.Period != "" && input.Period != budget.Period {
+		now := time.Now()
+		var existing models.BudgetCategory
+		query := db.Where("user_id = ? AND category_id = ? AND period = ?", userID, budget.CategoryID, input.Period)
+
+		if input.Period == "monthly" {
+			query = query.Where("MONTH(created_at) = ? AND YEAR(created_at) = ?", now.Month(), now.Year())
+		} else if input.Period == "yearly" {
+			query = query.Where("YEAR(created_at) = ?", now.Year())
+		} else if input.Period == "weekly" {
+			query = query.Where("YEARWEEK(created_at, 1) = YEARWEEK(?, 1)", now)
+		}
+
+		if err := query.First(&existing).Error; err == nil && existing.ID != uint(id) {
+			utils.RespondWithError(c, http.StatusBadRequest, "Budget untuk kategori & periode ini sudah ada")
+			return
+		}
+	}
+
+	// ✅ Update fields
 	if input.Amount != 0 {
 		budget.Amount = input.Amount
 	}
