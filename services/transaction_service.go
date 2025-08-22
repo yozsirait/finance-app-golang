@@ -38,6 +38,7 @@ func (s *TransactionService) adjustAccountBalance(tx *gorm.DB, accountID uint, t
 	if err := tx.First(&acc, accountID).Error; err != nil {
 		return err
 	}
+
 	switch tType {
 	case "expense":
 		if apply {
@@ -57,12 +58,14 @@ func (s *TransactionService) adjustAccountBalance(tx *gorm.DB, accountID uint, t
 	default:
 		return fmt.Errorf("invalid type: %s", tType)
 	}
+
 	return tx.Save(&acc).Error
 }
 
 func (s *TransactionService) validateRelations(userID, memberID, accountID, categoryID uint) error {
 	var cnt int64
 
+	// cek member
 	if err := s.db.Model(&models.Member{}).
 		Where("user_id = ? AND id = ?", userID, memberID).
 		Count(&cnt).Error; err != nil {
@@ -72,6 +75,7 @@ func (s *TransactionService) validateRelations(userID, memberID, accountID, cate
 		return utils.NewAppError("Member not found", http.StatusNotFound)
 	}
 
+	// cek account
 	cnt = 0
 	if err := s.db.Model(&models.Account{}).
 		Where("member_id = ? AND id = ?", memberID, accountID).
@@ -82,6 +86,7 @@ func (s *TransactionService) validateRelations(userID, memberID, accountID, cate
 		return utils.NewAppError("Account not found", http.StatusNotFound)
 	}
 
+	// cek category
 	cnt = 0
 	if err := s.db.Model(&models.Category{}).
 		Where("user_id = ? AND id = ?", userID, categoryID).
@@ -91,6 +96,7 @@ func (s *TransactionService) validateRelations(userID, memberID, accountID, cate
 	if cnt == 0 {
 		return utils.NewAppError("Category not found", http.StatusNotFound)
 	}
+
 	return nil
 }
 
@@ -151,10 +157,8 @@ func (s *TransactionService) GetTransactions(userID uint, q TransactionQuery) ([
 
 	offset := (q.Page - 1) * q.Limit
 	var transactions []models.Transaction
-	if err := query.
-		Preload("Account", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,balance") }).
-		Preload("Category", func(db *gorm.DB) *gorm.DB { return db.Select("id,name,type") }).
-		Preload("Member", func(db *gorm.DB) *gorm.DB { return db.Select("id,name") }).
+	if err := s.repo.
+		WithRelations(query).
 		Order(fmt.Sprintf("%s %s", sortBy, sortOrder)).
 		Offset(offset).
 		Limit(q.Limit).
@@ -253,12 +257,12 @@ func (s *TransactionService) Update(userID uint, id string, req map[string]inter
 	}
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
-		// rollback lama
+		// rollback saldo lama
 		if err := s.adjustAccountBalance(tx, existing.AccountID, existing.Type, existing.Amount, false); err != nil {
 			return err
 		}
 
-		// update
+		// update data
 		existing.MemberID = newMemberID
 		existing.AccountID = newAccountID
 		existing.CategoryID = newCategoryID
@@ -271,8 +275,8 @@ func (s *TransactionService) Update(userID uint, id string, req map[string]inter
 			return err
 		}
 
-		// apply baru
-		if err := s.adjustAccountBalance(tx, existing.AccountID, existing.Type, existing.Amount, true); err != nil {
+		// apply saldo baru
+		if err := s.adjustAccountBalance(tx, newAccountID, newType, newAmount, true); err != nil {
 			return err
 		}
 		return nil
@@ -294,6 +298,6 @@ func (s *TransactionService) Delete(userID uint, id string) error {
 		if err := s.adjustAccountBalance(tx, trx.AccountID, trx.Type, trx.Amount, false); err != nil {
 			return err
 		}
-		return s.repo.Delete(trx)
+		return tx.Delete(trx).Error
 	})
 }
