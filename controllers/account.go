@@ -21,7 +21,8 @@ func GetAccounts(c *gin.Context) {
 	accType := c.Query("type")
 
 	db := database.GetDB()
-	query := db.Joins("JOIN members ON members.id = accounts.member_id").
+	query := db.Preload("Member").
+		Joins("JOIN members ON members.id = accounts.member_id").
 		Where("members.user_id = ?", userID)
 
 	if memberID != "" {
@@ -103,7 +104,8 @@ func GetAccountByID(c *gin.Context) {
 
 	db := database.GetDB()
 	var account models.Account
-	if err := db.Joins("JOIN members ON members.id = accounts.member_id").
+	if err := db.Preload("Member").
+		Joins("JOIN members ON members.id = accounts.member_id").
 		Where("members.user_id = ? AND accounts.id = ?", userID, id).
 		First(&account).Error; err != nil {
 		utils.RespondWithError(c, http.StatusNotFound, "Account not found")
