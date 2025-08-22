@@ -58,57 +58,65 @@ func GetDashboard(c *gin.Context) {
 		WHERE user_id = ? AND YEAR(date)=? AND MONTH(date)=?
 	`, userID, lastYear, lastMonthNum).Scan(&lastSummary)
 
-	// 4. Pie chart: semua kategori pengeluaran bulan ini
-	var pieCategories []struct {
+	// Struct reuse untuk kategori chart
+	type CategoryChart struct {
 		Name  string  `json:"name"`
 		Total float64 `json:"total"`
 	}
+	type BarChart struct {
+		Category string  `json:"category"`
+		Income   float64 `json:"income"`
+		Expense  float64 `json:"expense"`
+	}
+
+	// 4. Pie chart (hanya kategori user ini)
+	var pieCategories []CategoryChart
 	db.Raw(`
 		SELECT c.name, COALESCE(SUM(t.amount),0) AS total
 		FROM categories c
-		LEFT JOIN transactions t ON t.category_id=c.id AND t.user_id=? AND t.type='expense'
+		LEFT JOIN transactions t 
+			ON t.category_id=c.id AND t.user_id=? AND t.type='expense'
 			AND YEAR(t.date)=? AND MONTH(t.date)=?
+		WHERE c.user_id = ? 
 		GROUP BY c.name
 		ORDER BY total DESC
-	`, userID, currentYear, currentMonth).Scan(&pieCategories)
+	`, userID, currentYear, currentMonth, userID).Scan(&pieCategories)
 
-	// 5. Top transaksi terbesar bulan ini (bar chart)
+	// 5. Top transaksi terbesar bulan ini
 	var topTransactions []models.Transaction
 	db.Where("user_id = ? AND YEAR(date) = ? AND MONTH(date) = ?", userID, currentYear, currentMonth).
 		Order("amount DESC").Limit(5).Find(&topTransactions)
 
 	// 6. Bar chart data per kategori (income & expense)
-	var barChart []struct {
-		Category string  `json:"category"`
-		Income   float64 `json:"income"`
-		Expense  float64 `json:"expense"`
-	}
+	var barChart []BarChart
 	db.Raw(`
 		SELECT c.name AS category,
 			COALESCE(SUM(CASE WHEN t.type='income' THEN t.amount ELSE 0 END),0) AS income,
 			COALESCE(SUM(CASE WHEN t.type='expense' THEN t.amount ELSE 0 END),0) AS expense
 		FROM categories c
-		LEFT JOIN transactions t ON t.category_id=c.id AND t.user_id=? AND YEAR(t.date)=? AND MONTH(t.date)=?
+		LEFT JOIN transactions t 
+			ON t.category_id=c.id AND t.user_id=? 
+			AND YEAR(t.date)=? AND MONTH(t.date)=?
+		WHERE c.user_id = ?
 		GROUP BY c.name
 		ORDER BY (COALESCE(SUM(t.amount),0)) DESC
-	`, userID, currentYear, currentMonth).Scan(&barChart)
+	`, userID, currentYear, currentMonth, userID).Scan(&barChart)
 
-	// 7. Optional: top 3 kategori (bisa dipakai pie chart utama)
-	var top3Categories []struct {
-		Name  string  `json:"name"`
-		Total float64 `json:"total"`
-	}
+	// 7. Top 3 kategori
+	var top3Categories []CategoryChart
 	db.Raw(`
 		SELECT c.name, COALESCE(SUM(t.amount),0) AS total
 		FROM categories c
-		LEFT JOIN transactions t ON t.category_id=c.id AND t.user_id=? AND t.type='expense'
+		LEFT JOIN transactions t 
+			ON t.category_id=c.id AND t.user_id=? AND t.type='expense'
 			AND YEAR(t.date)=? AND MONTH(t.date)=?
+		WHERE c.user_id = ?
 		GROUP BY c.name
 		ORDER BY total DESC
 		LIMIT 3
-	`, userID, currentYear, currentMonth).Scan(&top3Categories)
+	`, userID, currentYear, currentMonth, userID).Scan(&top3Categories)
 
-	// Response all-in-one
+	// Response
 	utils.RespondWithSuccess(c, gin.H{
 		"total_balance":      totalBalance,
 		"income_this_month":  currentSummary.Income,
@@ -118,10 +126,10 @@ func GetDashboard(c *gin.Context) {
 		"income_change":      currentSummary.Income - lastSummary.Income,
 		"expense_change":     currentSummary.Expense - lastSummary.Expense,
 		"net_savings":        currentSummary.Income - currentSummary.Expense,
-		"top_categories":     top3Categories,  // pie chart utama
-		"pie_chart_data":     pieCategories,   // pie chart lengkap
-		"top_transactions":   topTransactions, // bar chart
-		"bar_chart_data":     barChart,        // bar chart per kategori
+		"top_categories":     top3Categories,
+		"pie_chart_data":     pieCategories,
+		"top_transactions":   topTransactions,
+		"bar_chart_data":     barChart,
 		"current_month":      currentMonth,
 		"current_year":       currentYear,
 	})
