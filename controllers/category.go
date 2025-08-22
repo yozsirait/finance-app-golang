@@ -31,7 +31,7 @@ func GetCategories(c *gin.Context) {
 	}
 
 	var categories []models.Category
-	if err := query.Order("name ASC").Find(&categories).Error; err != nil {
+	if err := query.Order("type DESC, name ASC").Find(&categories).Error; err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to fetch categories")
 		return
 	}
