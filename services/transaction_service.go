@@ -144,9 +144,9 @@ func (s *TransactionService) GetTransactions(userID uint, q TransactionQuery) ([
 	if allowedSort[strings.ToLower(q.SortBy)] {
 		sortBy = q.SortBy
 	}
-	sortOrder := "DESC"
-	if strings.ToLower(q.SortOrder) == "asc" {
-		sortOrder = "ASC"
+	sortOrder := "ASC"
+	if strings.ToLower(q.SortOrder) == "desc" {
+		sortOrder = "DESC"
 	}
 
 	offset := (q.Page - 1) * q.Limit

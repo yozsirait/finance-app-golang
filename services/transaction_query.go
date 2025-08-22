@@ -11,7 +11,7 @@ type TransactionQuery struct {
 	MaxAmount   float64 `form:"max_amount"`
 	Description string  `form:"description"`
 	SortBy      string  `form:"sort_by,default=date"`
-	SortOrder   string  `form:"sort_order,default=desc"`
+	SortOrder   string  `form:"sort_order,default=asc"`
 	Limit       int     `form:"limit,default=20"`
 	Page        int     `form:"page,default=1"`
 }
